@@ -79,8 +79,34 @@ func callOnServers(servers []string, pause time.Duration, iteration int, mailInf
 
 			if res.StatusCode >= 200 && res.StatusCode < 300 {
 				fmt.Printf("%s is OK\n", server)
+			} else if res.StatusCode == 405 {
+				req, err := http.NewRequest(http.MethodGet, server, nil)
+				if err != nil {
+					fmt.Printf("%s: could not create request: %s\n", server, err)
+					continue
+				}
+
+				getRes, err := http.DefaultClient.Do(req)
+				if err != nil {
+					fmt.Printf("%s: error making http request: %s\n", server, err)
+					errorServer = append(errorServer, server)
+
+					continue
+				}
+
+				if getRes.StatusCode >= 200 && getRes.StatusCode < 300 {
+					fmt.Printf("%s is OK\n", server)
+				} else {
+					fmt.Printf("%s: status code: %d\n", server, res.StatusCode)
+					errorServer = append(errorServer, server)
+
+					continue
+				}
 			} else {
-				fmt.Printf("client: status code: %d\n", res.StatusCode)
+				fmt.Printf("%s: status code: %d\n", server, res.StatusCode)
+				errorServer = append(errorServer, server)
+
+				continue
 			}
 
 		}
