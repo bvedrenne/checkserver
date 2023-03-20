@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -51,7 +52,7 @@ func main() {
 			//} else if len(argv.Servers) > 0 {
 			// callOnServers(argv.Servers, argv.Duration.Duration, argv.Iteration, _)
 		} else {
-			fmt.Printf("Servers list is mandatory")
+			return errors.New("servers list is mandatory")
 		}
 
 		return nil
@@ -63,47 +64,24 @@ func callOnServers(servers []string, pause time.Duration, iteration int, mailInf
 		errorServer := []string{}
 		for _, server := range servers {
 
-			req, err := http.NewRequest(http.MethodHead, server, nil)
-			if err != nil {
-				fmt.Printf("%s: could not create request: %s\n", server, err)
-				continue
-			}
+			var res int
+			res, errorServer = callHttp(http.MethodHead, server, errorServer)
 
-			res, err := http.DefaultClient.Do(req)
-			if err != nil {
-				fmt.Printf("%s: error making http request: %s\n", server, err)
-				errorServer = append(errorServer, server)
-
-				continue
-			}
-
-			if res.StatusCode >= 200 && res.StatusCode < 300 {
+			if res >= 200 && res < 300 {
 				fmt.Printf("%s is OK\n", server)
-			} else if res.StatusCode == 405 {
-				req, err := http.NewRequest(http.MethodGet, server, nil)
-				if err != nil {
-					fmt.Printf("%s: could not create request: %s\n", server, err)
-					continue
-				}
+			} else if res == 405 {
+				res, errorServer = callHttp(http.MethodGet, server, errorServer)
 
-				getRes, err := http.DefaultClient.Do(req)
-				if err != nil {
-					fmt.Printf("%s: error making http request: %s\n", server, err)
-					errorServer = append(errorServer, server)
-
-					continue
-				}
-
-				if getRes.StatusCode >= 200 && getRes.StatusCode < 300 {
+				if res >= 200 && res < 300 {
 					fmt.Printf("%s is OK\n", server)
 				} else {
-					fmt.Printf("%s: status code: %d\n", server, res.StatusCode)
+					fmt.Printf("%s: status code: %d\n", server, res)
 					errorServer = append(errorServer, server)
 
 					continue
 				}
 			} else {
-				fmt.Printf("%s: status code: %d\n", server, res.StatusCode)
+				fmt.Printf("%s: status code: %d\n", server, res)
 				errorServer = append(errorServer, server)
 
 				continue
@@ -116,6 +94,22 @@ func callOnServers(servers []string, pause time.Duration, iteration int, mailInf
 
 		time.Sleep(pause)
 	}
+}
+
+func callHttp(requestMethod string, server string, errorServer []string) (int, []string) {
+	req, err := http.NewRequest(requestMethod, server, nil)
+	if err != nil {
+		fmt.Printf("%s: could not create request: %s\n", server, err)
+		errorServer = append(errorServer, server)
+		return -1, errorServer
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Printf("%s: error making http request: %s\n", server, err)
+		errorServer = append(errorServer, server)
+	}
+	return res.StatusCode, errorServer
 }
 
 type ErrorServerInfo struct {
